@@ -1,0 +1,28 @@
+- hosts: 127.0.0.1
+  vars:
+    artifactName: "{{ ansible_env.ARTIFACT_NAME }}"
+    artifactVersion: "{{ ansible_env.ARTIFACT_VERSION }}"
+    apsPackageName: com/alfresco/aps
+    artifactoryHost: localhost
+    artifactoryPort: 8081
+    artifactoryUri: artifactory/libs-release-local
+    checkoutLocation: /tmp
+    jarLocation: /usr/local/Cellar/tomcat/8.5.11/libexec/webapps/activiti-app/WEB-INF/lib
+    fileOwner: cijujoseph
+    fileGroup: admin
+  tasks:
+  - get_url:
+      url: http://{{artifactoryHost}}:{{artifactoryPort}}/{{artifactoryUri}}/{{apsPackageName}}/{{artifactName}}/{{artifactVersion}}/{{artifactName}}-{{artifactVersion}}.jar
+      dest: "{{checkoutLocation}}/{{artifactName}}-{{artifactVersion}}.jar"
+      mode: 0440
+  # JAR Deployment
+  # You may need to add a step here to stop tomcat and ensure it has stopped 
+  # Now copy the jar file to all hosts - this part should happen on all hosts.
+  - shell: 'rm -rf {{jarLocation}}/{{artifactName}}-*.jar'
+  - copy:
+      src: "{{checkoutLocation}}/{{artifactName}}-{{artifactVersion}}.jar"
+      dest: "{{jarLocation}}/{{artifactName}}-{{artifactVersion}}.jar"
+      owner: "{{fileOwner}}"
+      group: "{{fileGroup}}"
+      mode: 0644
+  # You may also need to start tomcat and and make sure it is back up....then do an api call(health check) to make sure tomcat started.

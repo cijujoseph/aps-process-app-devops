@@ -1,0 +1,35 @@
+- hosts: 127.0.0.1
+  vars:
+    artifactName: "{{ ansible_env.ARTIFACT_NAME }}"
+    artifactVersion: "{{ ansible_env.ARTIFACT_VERSION }}"
+    apsAppName: "{{ ansible_env.APP_NAME }}"
+    apsPackageName: com/alfresco/aps
+    apsApiUser: admin@app.activiti.com
+    apsApiPassword: admin
+    apsHost: localhost
+    apsPort: 8080
+    apsApiUri: activiti-app/api/enterprise
+    artifactoryHost: localhost
+    artifactoryPort: 8081
+    artifactoryUri: artifactory/libs-release-local
+    checkoutLocation: /tmp
+    renewIdm: true
+  # App Deployment - this needs to happen only once. So you don't need to do this against all nodes.
+  name: Download App Zip
+  tasks:
+  - get_url:
+      url: http://{{artifactoryHost}}:{{artifactoryPort}}/{{artifactoryUri}}/{{apsPackageName}}/{{artifactName}}/{{artifactVersion}}/{{artifactName}}-{{artifactVersion}}-App.zip
+      dest: "{{checkoutLocation}}/{{artifactName}}-{{artifactVersion}}-App.zip"
+      mode: 0440                                                                    
+  - uri:
+      url: http://{{apsHost}}:{{apsPort}}/{{apsApiUri}}/models?modelType=3
+      user: "{{apsApiUser}}"
+      password: "{{apsApiPassword}}"
+      return_content: yes
+    register: apps_json_response
+  - set_fact:
+      app_list: "{{ apps_json_response.json.data | selectattr('name', 'equalto', apsAppName) | map(attribute='id') | list }}"
+  - shell: 'curl -X POST -u {{apsApiUser}}:{{apsApiPassword}} -F file=@{{checkoutLocation}}/{{artifactName}}-{{artifactVersion}}-App.zip "http://{{apsHost}}:{{apsPort}}/{{apsApiUri}}/app-definitions/{{app_list.0}}/import?renewIdmEntries={{renewIdm}}"'
+    when: app_list
+  - shell: 'curl -X POST -u {{apsApiUser}}:{{apsApiPassword}} -F file=@{{checkoutLocation}}/{{artifactName}}-{{artifactVersion}}-App.zip "http://{{apsHost}}:{{apsPort}}/{{apsApiUri}}/app-definitions/import?renewIdmEntries={{renewIdm}}"'
+    when: not app_list

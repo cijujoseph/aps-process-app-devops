@@ -1,0 +1,40 @@
+node {
+    def server = Artifactory.server 'ARTIFACTORY' // Name from Jenkins configuration
+    def rtMaven = Artifactory.newMavenBuild()
+    def descriptor = Artifactory.mavenDescriptor()
+    def buildInfo
+    def version
+
+    stage ('Clone') {
+        git url: 'https://github.com/cijujoseph/super-cool-process-app.git'
+    }
+    
+    stage('Test') {
+        sh 'mvn clean test'
+        junit '**/target/surefire-reports/TEST-*.xml'
+    }
+
+    stage ('Artifactory configuration') {
+        rtMaven.tool = 'MAVEN' // Tool name from Jenkins configuration
+        rtMaven.deployer releaseRepo: 'libs-release-local', snapshotRepo: 'libs-snapshot-local', server: server
+        rtMaven.resolver releaseRepo: 'libs-release', snapshotRepo: 'libs-snapshot', server: server
+        buildInfo = Artifactory.newBuildInfo()
+        buildInfo.env.capture = true
+        descriptor.version = '1.0.'+ currentBuild.number
+        descriptor.transform()
+    }
+
+    stage ('Maven build') {
+        def pom = readMavenPom file: 'pom.xml'
+        version = pom.version.replace("-SNAPSHOT", ".${currentBuild.number}")
+        rtMaven.run pom: 'pom.xml', goals: 'clean package -Dmaven.test.skip=true', buildInfo: buildInfo
+    }
+
+     stage ('Publish build info') {
+         server.publishBuildInfo buildInfo
+     }
+     
+     stage ('Start Deployment Job') {
+        build job: 'super-cool-process-app-deploy', parameters: [[$class: 'StringParameterValue', name: 'ARTIFACT_VERSION', value: version]]
+    }
+}
